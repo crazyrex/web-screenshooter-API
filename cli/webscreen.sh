@@ -2,7 +2,7 @@
 
 . progressbar.sh
 
-BACKEND="http://localhost:1448"
+BACKEND="http://foo.sockhost.net:1448"
 
 if [[ "$3" == "-o" ]] && [[ ! -z "$4" ]];
 then
@@ -49,7 +49,7 @@ function batch_captures
     echo ""
     echo "Done. Retrieving the zip file..."
     curl -X GET "$BACKEND/web-screenshot/batch/${batch_id}" > "${output}"
-    curl -s -X DELETE "$BACKEND/web-screenshot/batch/${batch_id}"
+    #curl -s -X DELETE "$BACKEND/web-screenshot/batch/${batch_id}"
     echo "Finished"
 }
 

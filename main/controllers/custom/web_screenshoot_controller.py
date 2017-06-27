@@ -61,7 +61,7 @@ class WebScreenshootController(Controller):
 
         return send_file(img_io, mimetype='image/jpeg')
 
-    @route("/web-screenshot/batch", methods=['POST'])
+    @route("/web-screenshot/batches", methods=['POST'])
     def batch_web_screenshot(self):
 
         json_request = request.get_json(force=True, silent=True, cache=False)
@@ -81,7 +81,7 @@ class WebScreenshootController(Controller):
 
         return jsonify({"batch_id": batch_id})
 
-    @route("/web-screenshot/batch/<batch_id>/status", methods=['GET'])
+    @route("/web-screenshot/batches/<batch_id>/status", methods=['GET'])
     def get_batch_status(self, batch_id):
 
         service = self.available_services['batch_screenshoot_processor']
@@ -90,24 +90,46 @@ class WebScreenshootController(Controller):
 
         return jsonify({'percentage_completed': percentage, 'is_zipped': is_zipped})
 
-    @route("/web-screenshot/batch/<batch_id>", methods=['DELETE'])
+    @route("/web-screenshot/batches/<batch_id>", methods=['DELETE'])
     def remove_batch(self, batch_id):
 
         service = self.available_services['batch_screenshoot_processor']
 
-        service.remove_batch(batch_id)
+        try:
+            service.remove_batch(batch_id)
+        except:
+            raise InvalidRequest("Batch ID not valid or not available for removing.")
 
         return jsonify({'status': "done"})
 
-    @route("/web-screenshot/batch/<batch_id>", methods=['GET'])
+    @route("/web-screenshot/batches/<batch_id>", methods=['PATCH'])
+    def close_batch(self, batch_id):
+
+        service = self.available_services['batch_screenshoot_processor']
+
+        try:
+            service.cancel_batch(batch_id)
+        except:
+            raise InvalidRequest("Batch ID not valid or not available for cancelling.")
+
+        return jsonify({'status': "done"})
+
+    @route("/web-screenshot/batches/<batch_id>", methods=['GET'])
     def get_batch(self, batch_id):
         service = self.available_services['batch_screenshoot_processor']
 
-        zip_uri = service.get_batch_zip_uri(batch_id)
+        try:
+            zip_uri = service.get_batch_zip_uri(batch_id)
+            percentage, is_zipped = service.get_processed_percentage(batch_id)
+        except:
+            raise InvalidRequest("Batch ID not valid or not available for cancelling.")
+
+        if not is_zipped:
+            raise InvalidRequest("Batch is not ready yet.")
 
         return send_file(zip_uri)
 
-    @route("/web-screenshot/batch", methods=['GET'])
+    @route("/web-screenshot/batches", methods=['GET'])
     def get_batches(self):
         service = self.available_services['batch_screenshoot_processor']
         batches_ids = service.get_batches_ids()

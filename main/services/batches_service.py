@@ -33,15 +33,15 @@ class BatchesService(ServiceInterface):
             batch_id = max(batch_keys)
             batch_id += 1
             uri = "/tmp/batch_folder_{}/".format(batch_id)
-            try:
-                os.mkdir(uri)
-            except:
-                pass
-
-            for url in url_list:
-                promises[url] = self.processor_service.queue_request(url, batch_id, callback)
-
             self.batches[batch_id] = {"uri": uri, "url_processed": [], "url_pending": url_list, "zip_uri": "", "promises": promises, "url_uri_map": {}}
+        try:
+            os.mkdir(uri)
+        except:
+            pass
+
+        for url in url_list:
+            with self.lock:
+                promises[url] = self.processor_service.queue_request(url, batch_id, callback)
 
         return batch_id
 
@@ -57,7 +57,11 @@ class BatchesService(ServiceInterface):
         self._save_screenshot(result, uri)
 
         with self.lock:
-            del self.batches[batch_id]["promises"][original]
+            try:
+                del self.batches[batch_id]["promises"][original]
+            except:
+                print("Discarded 1 element not appearing in the promises of batch {} ({})".format(batch_id, original))
+                pass
             self.batches[batch_id]["url_processed"].append(original)
             self.batches[batch_id]["url_uri_map"][original] = uri
 
@@ -121,6 +125,18 @@ class BatchesService(ServiceInterface):
             batches_ids = list(self.batches.keys())
 
         return batches_ids
+
+    def cancel_batch(self, batch_id):
+        if not str(batch_id).isdigit():
+            return
+
+        batch_id = int(batch_id)
+
+        with self.lock:
+            batches = self.batches[batch_id]
+            for url in batches['url_pending'] not in batches['url_processed']:
+                batches['url_pending'].append(url)
+                batches['url_uri_map'][url] = "Canceled."
 
     @staticmethod
     def _zip_file(folder):
