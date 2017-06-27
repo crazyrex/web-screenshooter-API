@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import json
+from time import sleep
 import uuid
 from shutil import make_archive, move, rmtree
 import os
@@ -171,6 +172,8 @@ class BatchesService(ServiceInterface):
             except:
                 # We don't care if a key has been removed from the list, next while iteration will take rid of it.
                 pass
+
+            sleep(0.1)
 
         self.__set_status__(SERVICE_STOPPED)
 
