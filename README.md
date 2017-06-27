@@ -26,7 +26,7 @@ If a batch of URLs are required, Web-Screenshooter supports it. First create a J
 
 ```json
 {
-    'urls': [
+    "urls": [
          "https://www.google.com/",
          "https://www.facebook.com/"
     ]
