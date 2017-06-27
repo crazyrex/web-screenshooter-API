@@ -22,14 +22,16 @@ def process(queue_element):
 
     # We fetch the search variables from the queue element
     request = queue_element[0]
+    extra_data = queue_element[1]
 
     try:
-        retrieved_result = processor.process(request)
+        retrieved_result = processor.process(request, extra_data)
 
     except Exception as ex:
         retrieved_result = None
+        print(ex)
 
-    return [request, retrieved_result]
+    return [request, retrieved_result, extra_data]
 
 
 class PoolInterface(object):
@@ -71,13 +73,13 @@ class PoolInterface(object):
 
         return stop_requested
 
-    def queue_request(self, request):
+    def queue_request(self, request, extra_data=None):
         """
         put a request in the request queue.
         :param request: request acceptable by the processor
         :return:
         """
-        self.processing_queue.put([request])
+        self.processing_queue.put([request, extra_data])
 
     def get_processes_free(self):
 
@@ -126,6 +128,20 @@ class PoolInterface(object):
             self.process_finished(wrapped_result)
 
         return None
+
+    def clear_queue(self):
+        """
+        Clears the current queue.
+        :return:
+        """
+        # Let's clear the queue by pulling each element until it is empty.
+        # It will throw an exception.
+
+        while not self._stop_requested():
+            try:
+                self.processing_queue.get(False)
+            except Empty:
+                break
 
     def terminate(self):
         """

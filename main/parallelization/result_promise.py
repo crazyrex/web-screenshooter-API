@@ -16,7 +16,7 @@ class ResultPromise(object):
         """
         Initializes the result container.
         """
-
+        self.abort = False
         self.original = original
         self.extra_data = extra_data
         self.result = None
@@ -58,3 +58,17 @@ class ResultPromise(object):
 
     def get_extra_data(self):
         return self.extra_data
+
+    def abort_promise(self):
+        """
+        Aborts this promise from getting processed.
+        :return:
+        """
+        with self.lock:
+            self.abort = True
+
+    def is_aborted(self):
+        with self.lock:
+            abort = self.abort
+
+        return abort

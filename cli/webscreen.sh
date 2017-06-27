@@ -2,7 +2,7 @@
 
 . progressbar.sh
 
-BACKEND="http://foo.sockhost.net:1448"
+BACKEND="http://localhost:1448"
 
 if [[ "$3" == "-o" ]] && [[ ! -z "$4" ]];
 then
@@ -28,7 +28,7 @@ function batch_captures
     preparebar 25 "#"
 
     completion_progress=0
-    is_zipped=0
+    is_zipped="false"
 
     while [[ "${completion_progress}" != "100" ]];
     do
@@ -39,7 +39,7 @@ function batch_captures
     done
     echo ""
     echo -e "Backend finished getting screenshots, now it is zipping the results\c"
-    while [[ "$is_zipped" == "0" ]];
+    while [[ "${is_zipped}" == "false" ]];
     do
         status=$(curl -s -X GET "$BACKEND/web-screenshot/batches/${batch_id}/status")
         is_zipped=$(echo "${status}" | jq '.["is_zipped"]')

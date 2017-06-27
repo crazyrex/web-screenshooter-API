@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from queue import Empty
 from time import sleep
 
 from main.parallelization.pool_interface import PoolInterface
@@ -25,7 +26,7 @@ class ProcessorService(ServiceInterface, PoolInterface):
             else:
                 promise = ResultPromise(self.manager, request, extra_data, callback)
                 self.promises[request] = promise
-                PoolInterface.queue_request(self, request)
+                PoolInterface.queue_request(self, request, extra_data)
 
         return promise
 
@@ -63,6 +64,7 @@ class ProcessorService(ServiceInterface, PoolInterface):
         try:
             request = wrapped_result[0]
             result = wrapped_result[1]
+            promise = None
 
             with self.lock:
                 if request in self.promises:
@@ -71,10 +73,44 @@ class ProcessorService(ServiceInterface, PoolInterface):
                 else:
                     raise Exception("Retrieved result for a request not listed as queued.")
 
-            promise.set_result(result)
+            if promise is not None:
+                promise.set_result(result)
 
 
         except Exception as ex:
             print(ex)
 
         self.process_queue()
+
+    def clear_queue(self, batch_id=None):
+        """
+        Clears the current queue.
+        :return:
+        """
+        # Let's clear the queue by pulling each element until it is empty.
+        # It will throw an exception.
+
+        if batch_id is None:
+            PoolInterface.clear_queue(self)
+        else:
+            temp_batches = []
+            invalid_promises = []
+
+            while not self._stop_requested():
+                try:
+                    [request, saved_batch] = self.processing_queue.get(False)
+                    if saved_batch != batch_id:
+                        temp_batches.append([request, saved_batch])
+                    else:
+                        with self.lock:
+                            if request in self.promises:
+                                promise = self.promises[request]
+                                del self.promises[request]
+                                invalid_promises.append(promise)
+                except Empty:
+                    for request in temp_batches:
+                        self.processing_queue.put(request)
+                    break
+
+            for promise in invalid_promises:
+                promise.set_result(b'')

@@ -11,11 +11,13 @@ __author__ = 'Iván de Paz Centeno'
 
 ZIP_FOLDER = "/tmp/screenshooter_batches_zip/"
 
+
 class BatchesService(ServiceInterface):
 
     def __init__(self, processor_service):
         ServiceInterface.__init__(self)
         self.batches = {}
+        self.batches_num = 0
         self.processor_service = processor_service
         try:
             os.mkdir(ZIP_FOLDER)
@@ -29,11 +31,11 @@ class BatchesService(ServiceInterface):
         promises = {}
 
         with self.lock:
-            batch_keys = [-1] + list(self.batches.keys())
-            batch_id = max(batch_keys)
-            batch_id += 1
+            batch_id = self.batches_num
+            self.batches_num += 1
             uri = "/tmp/batch_folder_{}/".format(batch_id)
             self.batches[batch_id] = {"uri": uri, "url_processed": [], "url_pending": url_list, "zip_uri": "", "promises": promises, "url_uri_map": {}}
+
         try:
             os.mkdir(uri)
         except:
@@ -42,6 +44,7 @@ class BatchesService(ServiceInterface):
         for url in url_list:
             with self.lock:
                 promises[url] = self.processor_service.queue_request(url, batch_id, callback)
+
 
         return batch_id
 
@@ -75,18 +78,19 @@ class BatchesService(ServiceInterface):
 
     def remove_batch(self, batch_id):
         if not str(batch_id).isdigit():
-            return
+            raise Exception ("specified batch_id is not a valid ID.")
 
         batch_id = int(batch_id)
 
+        self.processor_service.clear_queue(batch_id)
+
         with self.lock:
             rmtree("/tmp/batch_folder_{}".format(batch_id))
-            os.remove(self.batches[batch_id]['zip_uri'])
             del self.batches[batch_id]
 
     def get_batch_zip_bytes(self, batch_id):
         if not str(batch_id).isdigit():
-            return ""
+            raise Exception ("specified batch_id is not a valid ID.")
 
         with self.lock:
             zip_uri = self.batches[batch_id]['zip_uri']
@@ -98,7 +102,7 @@ class BatchesService(ServiceInterface):
 
     def get_batch_zip_uri(self, batch_id):
         if not str(batch_id).isdigit():
-            return ""
+            raise Exception ("specified batch_id is not a valid ID.")
 
         batch_id = int(batch_id)
 
@@ -109,7 +113,7 @@ class BatchesService(ServiceInterface):
 
     def get_processed_percentage(self, batch_id):
         if not str(batch_id).isdigit():
-            return
+            raise Exception ("specified batch_id is not a valid ID.")
 
         batch_id = int(batch_id)
 
@@ -128,15 +132,18 @@ class BatchesService(ServiceInterface):
 
     def cancel_batch(self, batch_id):
         if not str(batch_id).isdigit():
-            return
+            raise Exception ("specified batch_id is not a valid ID.")
 
         batch_id = int(batch_id)
 
+        self.processor_service.clear_queue(batch_id)
+
         with self.lock:
             batches = self.batches[batch_id]
-            for url in batches['url_pending'] not in batches['url_processed']:
-                batches['url_pending'].append(url)
-                batches['url_uri_map'][url] = "Canceled."
+            for url in batches['url_pending']:
+                if url not in batches['url_processed']:
+                    batches['url_processed'].append(url)
+                    batches['url_uri_map'][url] = "Canceled."
 
     @staticmethod
     def _zip_file(folder):
