@@ -68,9 +68,11 @@ class ProcessorService(ServiceInterface, PoolInterface):
                 if request in self.promises:
                     promise = self.promises[request]
                     del self.promises[request]
-                    promise.set_result(result)
                 else:
                     raise Exception("Retrieved result for a request not listed as queued.")
+
+            promise.set_result(result)
+
 
         except Exception as ex:
             print(ex)
