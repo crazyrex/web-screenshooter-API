@@ -6,13 +6,13 @@ Requires a debian-based system with Python3.4, Flask and Selenium.
 
 # Example usage
 
-## START THE SERVER
+### start the server
 From the root folder of the project, start the API-REST solution
 ```bash
 python3 -m main.bin.entry
 ```
 
-## CAPTURE THE WEBPAGE
+### capture a webpage screen
 All the API-REST calls are wrapped within a single CLI located at `/cli` floder, which simplifies its usage.
 Once started, invoke as many screenshots requests as required:
 
@@ -20,7 +20,7 @@ Once started, invoke as many screenshots requests as required:
 cd cli/
 bash webscreenshot capture https://www.google.com -o google-screenshot.png
 ```
-## MASSIVE CAPTURE OF WEBPAGES: BATCHING
+## Massive capture of screens from webpages: batching
 
 If a batch of URLs are required, Web-Screenshooter supports it. First create a JSON file with a content that looks like:
 
@@ -45,11 +45,3 @@ It will download the web screenshots captures zipped from the backend.
 
  * It is multithreaded, supporting a configurable set of workers for performing the screenshots. Take a look at the file `main/etc/config.json` for configuring those parameters.
  * Accepts a batch of URLs in an asynchronous way. Once requested, the CLI only polls the backend for its state and finally downloads the results zipped.
-
-
-# API-REST calls
-
-`PUT /web-screenshot/make`
-data-type: JSON
-data-format: { "url": "http://..." }
-
