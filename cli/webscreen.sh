@@ -22,7 +22,7 @@ function batch_captures
 {
     json_file="$1"
     output="$2"
-    batch_id=$(curl -s -X -k POST "${BACKEND}/web-screenshot/batch" -X POST -d @"${json_file}" | jq '.["batch_id"]')
+    batch_id=$(curl -s -X -k POST "${BACKEND}/web-screenshot/batches" -X POST -d @"${json_file}" | jq '.["batch_id"]')
     echo "Started batch with ID ${batch_id}"
 
     preparebar 25 "#"
@@ -32,7 +32,7 @@ function batch_captures
 
     while [[ "${completion_progress}" != "100" ]];
     do
-        status=$(curl -s -X GET "$BACKEND/web-screenshot/batch/${batch_id}/status")
+        status=$(curl -s -X GET "$BACKEND/web-screenshot/batches/${batch_id}/status")
         completion_progress=$(echo "${status}" | jq '.["percentage_completed"]')
         progressbar ${completion_progress} 100
         sleep 0.2
@@ -41,15 +41,15 @@ function batch_captures
     echo -e "Backend finished getting screenshots, now it is zipping the results\c"
     while [[ "$is_zipped" == "0" ]];
     do
-        status=$(curl -s -X GET "$BACKEND/web-screenshot/batch/${batch_id}/status")
+        status=$(curl -s -X GET "$BACKEND/web-screenshot/batches/${batch_id}/status")
         is_zipped=$(echo "${status}" | jq '.["is_zipped"]')
         echo -e ".\c"
         sleep 0.5
     done
     echo ""
     echo "Done. Retrieving the zip file..."
-    curl -X GET "$BACKEND/web-screenshot/batch/${batch_id}" > "${output}"
-    #curl -s -X DELETE "$BACKEND/web-screenshot/batch/${batch_id}"
+    curl -X GET "$BACKEND/web-screenshot/batches/${batch_id}" > "${output}"
+    #curl -s -X DELETE "$BACKEND/web-screenshot/batches/${batch_id}"
     echo "Finished"
 }
 
