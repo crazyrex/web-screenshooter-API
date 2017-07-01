@@ -25,7 +25,7 @@ function batch_captures
     batch_id=$(curl -s -X -k POST "${BACKEND}/web-screenshot/batches" -X POST -d @"${json_file}" | jq '.["batch_id"]')
     echo "Started batch with ID ${batch_id}"
 
-    preparebar 25 "#"
+    preparebar 30 "#"
 
     completion_progress=0
     is_zipped="false"
@@ -35,7 +35,7 @@ function batch_captures
         status=$(curl -s -X GET "$BACKEND/web-screenshot/batches/${batch_id}/status")
         completion_progress=$(echo "${status}" | jq '.["percentage_completed"]')
         progressbar ${completion_progress} 100
-        sleep 0.2
+        sleep 0.5
     done
     echo ""
     echo -e "Backend finished getting screenshots, now it is zipping the results\c"
