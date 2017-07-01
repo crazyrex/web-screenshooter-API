@@ -102,7 +102,7 @@ class WebScreenshootController(Controller):
         try:
             service.remove_batch(batch_id)
         except Exception as ex:
-            raise InvalidRequest("Batch ID not valid or not available for removing. {}".format(""))
+            raise InvalidRequest("Batch ID not valid or not available for removing. {}".format(ex))
 
         return jsonify({'status': "done"})
 
@@ -134,24 +134,8 @@ class WebScreenshootController(Controller):
 
         return send_file(zip_uri)
 
-    @route("/web-screenshot/batches/<batch_id>", methods=['GET'])
-    def get_batch(self, batch_id):
-
-        service = self.available_services['batch_screenshoot_processor']
-
-        try:
-            zip_uri = service.get_batch_zip_uri(batch_id)
-            percentage, is_zipped = service.get_processed_percentage(batch_id)
-        except:
-            raise InvalidRequest("Batch ID not valid or not available for cancelling.")
-
-        if not is_zipped:
-            raise InvalidRequest("Batch is not ready yet.")
-
-        return send_file(zip_uri)
-
     @route("/web-screenshot/batches", methods=['GET'])
     def get_batches(self):
         service = self.available_services['batch_screenshoot_processor']
         batches_ids = service.get_batches_ids()
-        return jsonify(batches_ids)
+        return jsonify({"batches": batches_ids})

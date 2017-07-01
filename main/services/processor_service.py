@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from queue import Empty
 from time import sleep
 
 from main.parallelization.pool_interface import PoolInterface
-from main.parallelization.result_promise import ResultPromise
+from main.parallelization.result_promise import ResultPromise, WaitableEvent
 from main.parallelization.service_interface import ServiceInterface, SERVICE_STOPPED
 
 __author__ = 'Iván de Paz Centeno'
@@ -12,21 +11,26 @@ __author__ = 'Iván de Paz Centeno'
 
 class ProcessorService(ServiceInterface, PoolInterface):
 
-    def __init__(self, processor_class, parallel_workers=10):
+    def __init__(self, processor_class, parallel_workers=10, processor_class_init_args=None):
         ServiceInterface.__init__(self)
-        PoolInterface.__init__(self, processor_class=processor_class, pool_limit=parallel_workers)
+        PoolInterface.__init__(self, processor_class=processor_class, pool_limit=parallel_workers,
+                               processor_class_init_args=processor_class_init_args)
         self.total_workers = parallel_workers
         self.promises = {}
+        self.promises_lock = self.manager.Lock()
+        self.promises_event = WaitableEvent()
 
-    def queue_request(self, request, extra_data=None, callback=None):
+    def queue_request(self, request, callback=None):
         with self.lock:
             if request in self.promises:
                 promise = self.promises[request]
+                promise.discard_one_abort()
 
             else:
-                promise = ResultPromise(self.manager, request, extra_data, callback)
+                promise = ResultPromise(self.manager, request, self, callback, promise_lock=self.promises_lock,
+                                        promise_event=self.promises_event)
                 self.promises[request] = promise
-                PoolInterface.queue_request(self, request, extra_data)
+                PoolInterface.queue_request(self, request)
 
         return promise
 
@@ -64,53 +68,16 @@ class ProcessorService(ServiceInterface, PoolInterface):
         try:
             request = wrapped_result[0]
             result = wrapped_result[1]
-            promise = None
 
             with self.lock:
                 if request in self.promises:
                     promise = self.promises[request]
                     del self.promises[request]
+                    promise.set_result(result)
                 else:
                     raise Exception("Retrieved result for a request not listed as queued.")
-
-            if promise is not None:
-                promise.set_result(result)
-
 
         except Exception as ex:
             print(ex)
 
         self.process_queue()
-
-    def clear_queue(self, batch_id=None):
-        """
-        Clears the current queue.
-        :return:
-        """
-        # Let's clear the queue by pulling each element until it is empty.
-        # It will throw an exception.
-
-        if batch_id is None:
-            PoolInterface.clear_queue(self)
-        else:
-            temp_batches = []
-            invalid_promises = []
-
-            while not self._stop_requested():
-                try:
-                    [request, saved_batch] = self.processing_queue.get(False)
-                    if saved_batch != batch_id:
-                        temp_batches.append([request, saved_batch])
-                    else:
-                        with self.lock:
-                            if request in self.promises:
-                                promise = self.promises[request]
-                                del self.promises[request]
-                                invalid_promises.append(promise)
-                except Empty:
-                    for request in temp_batches:
-                        self.processing_queue.put(request)
-                    break
-
-            for promise in invalid_promises:
-                promise.set_result(b'')

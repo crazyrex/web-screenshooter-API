@@ -8,7 +8,7 @@ class Processor(object):
     def __init__(self):
         pass
 
-    def process(self, request, extra_data=None):
+    def process(self, request):
         """
         Do something with request.
         :param request: request to work with.

@@ -12,6 +12,35 @@ __author__ = 'Iván de Paz Centeno'
 ZIP_FOLDER = "/tmp/screenshooter_batches_zip/"
 
 
+class RequestWrapper():
+
+    def __init__(self, request, batch_id):
+        super().__init__()
+        self.request = request
+        self.batch_id = batch_id
+
+    def __eq__(self, other):
+        try:
+            equals = other and (self.request == other or self.request == other.request)
+
+        except:
+            equals = False
+
+        return equals
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __hash__(self):
+        return hash(self.request)
+
+    def __str__(self):
+        return self.request
+
+    def get_batch_id(self):
+        return self.batch_id
+
+
 class BatchesService(ServiceInterface):
 
     def __init__(self, processor_service):
@@ -43,30 +72,36 @@ class BatchesService(ServiceInterface):
 
         for url in url_list:
             with self.lock:
-                promises[url] = self.processor_service.queue_request(url, batch_id, callback)
-
+                promises[url] = self.processor_service.queue_request(RequestWrapper(url, batch_id), callback)
 
         return batch_id
 
     def _batch_element_processed(self, batch_element_promise):
         result = batch_element_promise.get_result()
-        original = batch_element_promise.get_original()
-        batch_id = batch_element_promise.get_extra_data()
+        request = batch_element_promise.get_request()
+
+        batch_id = request.get_batch_id()
 
         with self.lock:
             father_uri = self.batches[batch_id]["uri"]
+            if batch_id not in self.batches:
+                return
 
-        uri = os.path.join(father_uri, "{}.png".format(original.replace("://", "----").replace("/", "--")))
-        self._save_screenshot(result, uri)
+        if result is None:
+            # It was aborted.
+            uri = "Canceled"
+        else:
+            uri = os.path.join(father_uri, "{}.png".format(str(request).replace("://", "----").replace("/", "--")))
+            self._save_screenshot(result, uri)
 
         with self.lock:
             try:
-                del self.batches[batch_id]["promises"][original]
+                del self.batches[batch_id]["promises"][request]
             except:
-                print("Discarded 1 element not appearing in the promises of batch {} ({})".format(batch_id, original))
+                print("Discarded 1 element not appearing in the promises of batch {} ({})".format(batch_id, request))
                 pass
-            self.batches[batch_id]["url_processed"].append(original)
-            self.batches[batch_id]["url_uri_map"][original] = uri
+            self.batches[batch_id]["url_processed"].append(request)
+            self.batches[batch_id]["url_uri_map"][str(request)] = uri
 
     @staticmethod
     def _save_screenshot(binary_data, filename):
@@ -82,9 +117,8 @@ class BatchesService(ServiceInterface):
 
         batch_id = int(batch_id)
 
-        self.processor_service.clear_queue(batch_id)
-
         with self.lock:
+            for request, promise in self.batches[batch_id]["promises"].items(): promise.abort()
             rmtree("/tmp/batch_folder_{}".format(batch_id))
             del self.batches[batch_id]
 
@@ -136,14 +170,8 @@ class BatchesService(ServiceInterface):
 
         batch_id = int(batch_id)
 
-        self.processor_service.clear_queue(batch_id)
-
         with self.lock:
-            batches = self.batches[batch_id]
-            for url in batches['url_pending']:
-                if url not in batches['url_processed']:
-                    batches['url_processed'].append(url)
-                    batches['url_uri_map'][url] = "Canceled."
+            for request, promise in self.batches[batch_id]["promises"].items(): promise.abort()
 
     @staticmethod
     def _zip_file(folder):

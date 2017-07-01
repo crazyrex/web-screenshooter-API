@@ -9,7 +9,7 @@ __author__ = 'Iván de Paz Centeno'
 
 
 processor = None
-
+abort_dict = None
 
 def process(queue_element):
     """
@@ -18,20 +18,23 @@ def process(queue_element):
     :param queue_element: element extracted from the queue.
     :return: search engine request result.
     """
-    global processor
+    global processor, abort_dict
 
     # We fetch the search variables from the queue element
     request = queue_element[0]
-    extra_data = queue_element[1]
+
+    is_aborted = abort_dict.get(request, False)
 
     try:
-        retrieved_result = processor.process(request, extra_data)
+        if is_aborted:
+            raise Exception("Request is aborted.")
+
+        retrieved_result = processor.process(request)
 
     except Exception as ex:
         retrieved_result = None
-        print(ex)
 
-    return [request, retrieved_result, extra_data]
+    return [request, retrieved_result]
 
 
 class PoolInterface(object):
@@ -40,28 +43,38 @@ class PoolInterface(object):
     Allows to process something in parallel.
     """
 
-    def __init__(self, processor_class, pool_limit=1):
+    def __init__(self, processor_class, pool_limit=1, processor_class_init_args=None):
 
         self.manager = Manager()
 
         self.processing_queue = self.manager.Queue()
+        self.abort_dict = self.manager.dict()
 
         self.pool = Pool(processes=pool_limit, initializer=self._init_pool_worker,
-                         initargs=[processor_class])
+                         initargs=[processor_class, self.abort_dict, processor_class_init_args])
 
+        self.pool_limit = pool_limit
         self.processes_free = pool_limit
         self._stop_processing = False
         self.lock_process_variable = Lock()
 
     @staticmethod
-    def _init_pool_worker(processor_class):
+    def _init_pool_worker(processor_class, _abort_dict, processor_class_init_args=None):
         """
         Initializes the worker thread. Each worker of the pool has its own firefox and display instance.
         :return:
         """
-        global processor
+        global processor, abort_dict
 
-        processor = processor_class()
+        if processor_class_init_args is None:
+            processor_class_init_args = []
+
+        if len(processor_class_init_args) > 0:
+            processor = processor_class(*processor_class_init_args)
+        else:
+            processor = processor_class()
+
+        abort_dict = _abort_dict
 
     def do_stop(self):
         with self.lock_process_variable:
@@ -73,13 +86,13 @@ class PoolInterface(object):
 
         return stop_requested
 
-    def queue_request(self, request, extra_data=None):
+    def queue_request(self, request):
         """
         put a request in the request queue.
         :param request: request acceptable by the processor
         :return:
         """
-        self.processing_queue.put([request, extra_data])
+        self.processing_queue.put([request, self.abort_dict])
 
     def get_processes_free(self):
 
@@ -87,6 +100,11 @@ class PoolInterface(object):
             processes_free = self.processes_free
 
         return processes_free
+
+    def housekeep_abort_dict(self):
+        with self.lock_process_variable:
+            if self.processes_free == self.pool_limit and len(self.abort_dict) > 0:
+                self.abort_dict.clear()
 
     def take_process(self):
 
@@ -114,6 +132,8 @@ class PoolInterface(object):
             except Empty:
                 break
 
+            self.housekeep_abort_dict()
+
     def _process_finished(self, wrapped_result):
         """
         Callback when the worker's thread is finished.
@@ -122,26 +142,19 @@ class PoolInterface(object):
         :param wrapped_result:
         :return:
         """
+        request = wrapped_result[0]
+
+        try:
+            del self.abort_dict[request]
+        except KeyError:
+            pass
+
         self.process_freed()
 
         if hasattr(self, 'process_finished'):
             self.process_finished(wrapped_result)
 
         return None
-
-    def clear_queue(self):
-        """
-        Clears the current queue.
-        :return:
-        """
-        # Let's clear the queue by pulling each element until it is empty.
-        # It will throw an exception.
-
-        while not self._stop_requested():
-            try:
-                self.processing_queue.get(False)
-            except Empty:
-                break
 
     def terminate(self):
         """
@@ -150,3 +163,15 @@ class PoolInterface(object):
         """
         self.pool.terminate()
         self.pool.join()
+
+    def abort_request(self, request):
+        try:
+            self.abort_dict[request] = True
+        except KeyError:
+            pass
+
+    def is_request_aborted(self, request):
+
+        result = self.abort_dict.get(request, False)
+
+        return result
