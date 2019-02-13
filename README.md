@@ -1,5 +1,5 @@
-# Web Screenshooter API 
-Flask-based API-REST solution for performing screenshoots of webpages remotely, within an API-REST. 
+# Web Screenshooter API
+Flask-based API-REST solution for performing screenshoots of webpages remotely, within an API-REST.
 
 # Requirements
 Requires a debian-based system with Python3.4, Flask and Selenium.
@@ -35,8 +35,9 @@ If a batch of URLs are required, Web-Screenshooter supports it. First create a J
 
 Now pass it to the CLI script as follows:
 ```bash
+python3 -m main.bin.entry
 cd cli/
-bash webscreenshot batch urls.json -o capture.zip
+bash webscreen.sh batch cli/example_batch_input.json -o captures/capture.zip
 ```
 
 It will download the web screenshots captures zipped from the backend.
